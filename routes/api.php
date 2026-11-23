@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CustomerAuthController;
+use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\CustomerOrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PizzaController;
@@ -14,6 +15,8 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminOrderController;
 use App\Http\Controllers\Api\AdminReportController;
+use App\Http\Controllers\Api\HeroBannerController;
+use App\Http\Controllers\Api\SettingController;
 use App\Models\CartItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -21,6 +24,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+Route::get('hero-banner', [HeroBannerController::class, 'show']);
+Route::post('hero-banner', [HeroBannerController::class, 'update']);
 
 Route::get('pizzas', [PizzaController::class, 'index']);
 Route::get('pizzas/{pizza}', [PizzaController::class, 'show']);
@@ -30,6 +36,8 @@ Route::delete('pizzas/{pizza}', [PizzaController::class, 'destroy']);
 
 Route::get('categories', [CategoryController::class, 'index']);
 Route::post('categories', [CategoryController::class, 'store']);
+Route::put('categories/{id}', [CategoryController::class, 'update']);
+Route::delete('categories/{id}', [CategoryController::class, 'destroy']);
 
 Route::get('reviews', [ReviewController::class, 'index']);
 Route::post('reviews', [ReviewController::class, 'store']);
@@ -48,6 +56,8 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 Route::prefix('v1')->group(function(){
+    Route::get('hero-banner', [HeroBannerController::class, 'show']);
+
     Route::prefix('customer')->group(function(){
 
         Route::post('register', [CustomerAuthController::class, 'register']);
@@ -55,6 +65,7 @@ Route::prefix('v1')->group(function(){
 
         Route::middleware('auth:sanctum')->group(function(){
             Route::get('me', [CustomerAuthController::class,'me']);     
+            Route::post('fcm-token', [CustomerController::class, 'updateFcmToken']);
             Route::post('checkout', [PaymentController::class,'checkout']); 
 
             Route::get('orders', [CustomerOrderController::class, 'index']);
@@ -64,6 +75,7 @@ Route::prefix('v1')->group(function(){
     });
 
     Route::get('categories', [CategoryController::class, 'index']);
+    Route::get('settings', [SettingController::class, 'show']);
     Route::post('send-otp', [AuthController::class, 'sendOtp']);
     Route::post('verify-otp', [AuthController::class, 'verifyOtp']);
 
@@ -79,10 +91,27 @@ Route::prefix('v1')->group(function(){
 
      Route::middleware('auth:sanctum')->group(function(){
 
+          Route::get('admin/hero-banner', [HeroBannerController::class, 'show']);
+          Route::post('admin/hero-banner', [HeroBannerController::class, 'update']);
+
           Route::get('admin/pizzas', [PizzaController::class, 'index']);
           Route::post('admin/pizzas', [PizzaController::class, 'store']);
           Route::put('admin/pizzas/{pizza}', [PizzaController::class, 'update']);
           Route::delete('admin/pizzas/{pizza}', [PizzaController::class, 'destroy']);
+
+          // Category Management Routes
+          Route::prefix('admin/categories')->group(function(){
+              Route::get('/', [CategoryController::class, 'index']);
+              Route::post('/', [CategoryController::class, 'store']);
+              Route::get('{id}', [CategoryController::class, 'show']);
+              Route::put('{id}', [CategoryController::class, 'update']);
+              Route::post('{id}', [CategoryController::class, 'update']);
+              Route::delete('{id}', [CategoryController::class, 'destroy']);
+          });
+          Route::post('categories', [CategoryController::class, 'store']);
+          Route::put('categories/{id}', [CategoryController::class, 'update']);
+          Route::post('categories/{id}', [CategoryController::class, 'update']);
+          Route::delete('categories/{id}', [CategoryController::class, 'destroy']);
 
          // User Management Routes
          Route::prefix('users')->group(function(){
@@ -119,11 +148,15 @@ Route::prefix('v1')->group(function(){
         // Admin Order Routes
         Route::prefix('admin/orders')->group(function(){
             Route::get('/', [AdminOrderController::class, 'index']);
+            Route::get('latest-notification', [AdminOrderController::class, 'latestNotification']);
             Route::get('{id}', [AdminOrderController::class, 'show']);
             Route::put('{id}/status', [AdminOrderController::class, 'updateStatus']);
             Route::put('{id}/payment-status', [AdminOrderController::class, 'updatePaymentStatus']);
             Route::delete('{id}', [AdminOrderController::class, 'destroy']);
         });
+
+        Route::post('fcm-token', [CustomerController::class, 'updateFcmToken']);
+        Route::post('admin/fcm-token', [CustomerController::class, 'updateFcmToken']);
 
         // Admin Report Routes
         Route::prefix('admin/reports')->group(function(){
@@ -131,6 +164,13 @@ Route::prefix('v1')->group(function(){
             Route::get('customers', [AdminReportController::class, 'customers']);
             Route::get('orders', [AdminReportController::class, 'orders']);
             Route::get('pizzas', [AdminReportController::class, 'pizzas']);
+        });
+
+        // Store Settings Routes
+        Route::prefix('admin/settings')->group(function(){
+            Route::get('/', [SettingController::class, 'show']);
+            Route::post('/', [SettingController::class, 'update']);
+            Route::put('/', [SettingController::class, 'update']);
         });
 
     });

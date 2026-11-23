@@ -38,6 +38,26 @@ class AdminOrderController extends Controller
         return response()->json($orders);
     }
 
+    public function latestNotification(Request $request)
+    {
+        $latestOrder = Order::with('user:id,name,mobile')
+            ->latest('id')
+            ->first();
+
+        if (!$latestOrder) {
+            return response()->json(['has_order' => false]);
+        }
+
+        return response()->json([
+            'has_order' => true,
+            'latest_order_id' => $latestOrder->id,
+            'total' => $latestOrder->total,
+            'status' => $latestOrder->status,
+            'customer_name' => $latestOrder->user->name ?? 'Customer',
+            'created_at' => $latestOrder->created_at ? $latestOrder->created_at->toIso8601String() : null,
+        ]);
+    }
+
     public function show($id)
     {
         $order = Order::with(['user', 'items.pizza'])->findOrFail($id);
@@ -56,6 +76,27 @@ class AdminOrderController extends Controller
         $order->update([
             'status' => $data['status']
         ]);
+
+        // Send FCM notification to customer
+        try {
+            $fcm = app(\App\Services\FirebaseNotificationService::class);
+            $order->loadMissing('user');
+            if ($order->user) {
+                if ($data['status'] === 'shipped') {
+                    $fcm->sendToUser($order->user, "🛵 Pizza On The Way!", "Order #{$order->id} is out for delivery!");
+                } elseif ($data['status'] === 'processing') {
+                    $fcm->sendToUser($order->user, "🍕 Order Being Prepared", "Order #{$order->id} is now in the oven!");
+                } elseif ($data['status'] === 'completed') {
+                    $fcm->sendToUser($order->user, "🎉 Order Delivered!", "Order #{$order->id} has been delivered. Enjoy!");
+                } elseif ($data['status'] === 'cancelled') {
+                    $fcm->sendToUser($order->user, "❌ Order Cancelled", "Order #{$order->id} has been cancelled.");
+                } else {
+                    $fcm->sendToUser($order->user, "🛵 Pizza On The Way!", "Order #{$order->id} is out for delivery!");
+                }
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('[FCM] Customer notification failed: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,

@@ -84,6 +84,27 @@ class PaymentController extends Controller
                 'extras' => $item['extras'],
             ]);
         }
+
+        // Send FCM notification to admins
+        try {
+            $fcm = app(\App\Services\FirebaseNotificationService::class);
+            $customerName = $user->name ?? 'Customer';
+            $paymentMethod = $request->input('payment_method', 'cod');
+            $fcm->sendToAdmins(
+                "🍕 New Order #{$order->id} Received!",
+                "{$customerName} placed an order of ৳{$order->total} ({$paymentMethod})",
+                [
+                    'order_id' => (string) $order->id,
+                    'total' => (string) $order->total,
+                    'customer' => (string) $customerName,
+                    'payment_method' => (string) $paymentMethod,
+                    'type' => 'new_order',
+                    'click_action' => '/admin/orders',
+                ]
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('[FCM] Admin notification failed: ' . $e->getMessage());
+        }
         
         if ($request->input('payment_method') === 'sslcommerz') {
             $postDetails = Sslcommerz::setOrder((float)$total, (string)$order->id, 'Pizza Order')

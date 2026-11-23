@@ -10,11 +10,34 @@ class CustomerOrderController extends Controller
 {
     public function index(Request $request)
     {
-        $orders = Order::where('user_id', $request->user()->id)
-            ->latest()
-            ->paginate(10);
+        $userId = $request->user()->id;
+        $allowedStatuses = ['pending', 'processing', 'completed', 'cancelled'];
 
-        return response()->json($orders);
+        $query = Order::where('user_id', $userId)
+            ->withSum('items as item_quantity', 'quantity');
+
+        if ($request->filled('status') && in_array($request->status, $allowedStatuses, true)) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('search')) {
+            $orderId = (int) ltrim(trim((string) $request->search), '#');
+            $query->where('id', $orderId);
+        }
+
+        $orders = $query->latest()->paginate(10);
+
+        $base = Order::where('user_id', $userId);
+        $stats = [
+            'total' => (clone $base)->count(),
+            'pending' => (clone $base)->where('status', 'pending')->count(),
+            'processing' => (clone $base)->where('status', 'processing')->count(),
+            'completed' => (clone $base)->where('status', 'completed')->count(),
+            'cancelled' => (clone $base)->where('status', 'cancelled')->count(),
+            'total_spent' => (float) (clone $base)->where('status', '!=', 'cancelled')->sum('total'),
+        ];
+
+        return response()->json(array_merge($orders->toArray(), ['stats' => $stats]));
     }
 
     public function show(Request $request, Order $order)
